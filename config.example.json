@@ -1,0 +1,31 @@
+{
+  "country": "in",
+  "browser": "auto",
+  "interval_minutes": 4,
+  "watch": [],
+  "ignore": [
+    "overwatch"
+  ],
+  "extra_skus": [],
+  "mac_notifications": true,
+  "ntfy": {
+    "enabled": false,
+    "server": "https://ntfy.sh",
+    "topic": ""
+  },
+  "email": {
+    "enabled": false,
+    "smtp_host": "smtp.gmail.com",
+    "smtp_port": 465,
+    "security": "ssl",
+    "username": "",
+    "password": "",
+    "from": "",
+    "to": []
+  },
+  "whatsapp": {
+    "enabled": false,
+    "phone": "+91XXXXXXXXXX",
+    "apikey": ""
+  }
+}
