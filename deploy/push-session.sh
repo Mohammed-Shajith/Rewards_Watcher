@@ -13,8 +13,22 @@ fi
 HOST="$1"
 REMOTE_DIR="${2:-Rewards_Watcher}"
 
+AGENT="gui/$(id -u)/com.rewardswatcher.agent"
+paused=false
+if [ "$(uname)" = "Darwin" ] && launchctl print "$AGENT" >/dev/null 2>&1; then
+  echo "==> Pausing the background watcher on this Mac (it uses the browser profile)"
+  ./deploy/macos-agent.sh stop >/dev/null
+  paused=true
+  sleep 2
+fi
+
 echo "==> Refreshing session.json from your browser profile"
 .venv/bin/python rewards_watcher.py export-session >/dev/null
+
+if [ "$paused" = true ]; then
+  echo "    (leaving the Mac watcher stopped so you don't get alerts twice;"
+  echo "     './deploy/macos-agent.sh uninstall' removes it for good)"
+fi
 
 echo "==> Copying to $HOST:$REMOTE_DIR/session.json"
 scp -q session.json "$HOST:$REMOTE_DIR/session.json"

@@ -181,14 +181,31 @@ Signed in: yes   items: 2
 
 ### Keeping it running
 
-On a Mac, stop it from sleeping while it runs:
+**On a Mac, run it in the background** (recommended). It starts at login,
+restarts if it crashes, keeps running after you close the terminal, and
+stops the Mac from idle-sleeping:
 
 ```bash
-caffeinate -i .venv/bin/python rewards_watcher.py run
+./deploy/macos-agent.sh install     # set up and start
+./deploy/macos-agent.sh status      # running? last checks
+./deploy/macos-agent.sh logs        # live log (data/watcher.log)
+./deploy/macos-agent.sh restart     # after editing config.json
+./deploy/macos-agent.sh stop        # pause until next login
+./deploy/macos-agent.sh uninstall   # remove completely
 ```
 
-It only works while the computer is on and awake. To catch 3 AM restocks,
-use server mode.
+Or just in a terminal: `caffeinate -i .venv/bin/python rewards_watcher.py run`.
+
+**When does it watch?** Only while the Mac is awake:
+
+| Mac state | Watching? |
+|---|---|
+| Open, even with the screen off or locked | ✅ |
+| Lid closed (asleep) | ❌ macOS always sleeps a closed MacBook, unless it's plugged in with an external display |
+| Just woke up | ✅ resumes within a few minutes |
+| After a restart | ✅ with the background agent, once you log in |
+
+To catch 3 AM restocks while your laptop sleeps, use server mode.
 
 ---
 
@@ -298,7 +315,7 @@ Created by `setup` (see [`config.example.json`](config.example.json)).
 | Phone alert only shows inside the ntfy app | Close the app (it doesn't notify for the topic you're viewing) and check battery settings. |
 | Mac banner opens Script Editor | Install and allow `terminal-notifier` (see above). |
 | `login` window doesn't open | Set `"browser"` in `config.json` to one you have installed. |
-| `export-session` says the profile is in use | Stop the watcher running on that computer (Ctrl+C), then retry. |
+| `export-session` says the profile is in use | Stop the watcher on that computer (Ctrl+C, or `./deploy/macos-agent.sh stop`), then retry. `push-session.sh` does this for you. |
 | Server: `check` says `Signed in: NO` | Copy a fresh session: `./deploy/push-session.sh user@server`. |
 
 ---
@@ -359,6 +376,7 @@ excludes them.
 ## Roadmap
 
 - [x] **Server mode**: run 24/7 on a Raspberry Pi, old laptop or cloud VM
+- [x] **macOS background agent**: start at login, survive closing the terminal
 - [ ] More stores/regions tested
 - [ ] Optional daily summary
 

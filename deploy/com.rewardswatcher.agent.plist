@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- macOS LaunchAgent for Rewards_Watcher. Don't edit by hand:
+     deploy/macos-agent.sh install fills in __DIR__. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.rewardswatcher.agent</string>
+
+  <!-- caffeinate -i keeps the Mac from idle-sleeping while it runs
+       (closing the lid still sleeps it). -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-i</string>
+    <string>__DIR__/.venv/bin/python</string>
+    <string>__DIR__/rewards_watcher.py</string>
+    <string>run</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__DIR__</string>
+
+  <!-- Start at login, restart if it crashes (at most every 30 s). -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+    <!-- so terminal-notifier (Homebrew) is found -->
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>__DIR__/data/watcher.log</string>
+  <key>StandardErrorPath</key>
+  <string>__DIR__/data/watcher.log</string>
+</dict>
+</plist>
