@@ -8,6 +8,7 @@ reads the store; it never redeems anything.
 Commands:
   setup       first-time setup: region, phone alerts, config.json
   login       open a browser once so you can sign in (session is saved)
+  export-session  write session.json to copy to a server (server mode)
   check       check the store once and print every item
   run         keep checking every few minutes and send alerts
   history     show logged restocks and how long they lasted
@@ -36,6 +37,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 CONFIG_PATH = HERE / "config.json"
 PROFILE_DIR = HERE / "profile"  # saved browser sign-in, never share this folder
+SESSION_PATH = HERE / "session.json"  # portable sign-in for server mode, keep private
 DB_PATH = HERE / "data" / "rewards.db"
 BASE = "https://rewards.bing.com"
 MIN_INTERVAL_MIN = 2  # don't hammer the store
@@ -43,6 +45,7 @@ MIN_INTERVAL_MIN = 2  # don't hammer the store
 DEFAULT_CONFIG = {
     "country": "in",
     "browser": "auto",
+    "auth": "auto",
     "interval_minutes": 4,
     "watch": [],
     "ignore": ["overwatch"],
@@ -145,39 +148,83 @@ def pick_browser(cfg):
     return "chromium"
 
 
-def launch(pw, cfg, headless):
+def _channel_kwargs(cfg):
     browser = pick_browser(cfg)
-    kwargs = {"headless": headless}
-    if browser != "chromium":
-        kwargs["channel"] = browser
-    return pw.chromium.launch_persistent_context(str(PROFILE_DIR), **kwargs)
+    return {} if browser == "chromium" else {"channel": browser}
+
+
+def launch(pw, cfg, headless):
+    return pw.chromium.launch_persistent_context(
+        str(PROFILE_DIR), headless=headless, **_channel_kwargs(cfg))
+
+
+def save_session(ctx):
+    """Write the sign-in (cookies) to session.json, owner-only. This file
+    is as sensitive as a password: anyone with it is signed in as you."""
+    tmp = SESSION_PATH.with_suffix(".tmp")
+    ctx.storage_state(path=str(tmp))
+    os.chmod(tmp, 0o600)
+    tmp.replace(SESSION_PATH)
+
+
+def auth_mode(cfg):
+    """profile = browser profile on this machine (desktop).
+    session = session.json copied from another machine (server mode)."""
+    mode = cfg.get("auth", "auto")
+    if mode == "auto":
+        mode = "profile" if PROFILE_DIR.exists() else "session"
+    return mode
 
 
 class Store:
-    """Headless Edge using the saved profile, so requests carry your
-    sign-in cookies. Kept open between checks."""
+    """Headless browser carrying your sign-in cookies. Kept open between
+    checks. Uses the local browser profile, or session.json on a server."""
 
     def __init__(self, cfg):
         self.cfg = cfg
+        self.mode = auth_mode(cfg)
         self._pw = None
+        self._browser = None
         self.ctx = None
+        self._session_mtime = None
 
     def __enter__(self):
         from playwright.sync_api import sync_playwright
 
-        if not PROFILE_DIR.exists():
+        if self.mode == "profile" and not PROFILE_DIR.exists():
             sys.exit("No saved sign-in yet. Run:  .venv/bin/python rewards_watcher.py login")
+        if self.mode == "session" and not SESSION_PATH.exists():
+            sys.exit("No sign-in found. On a desktop run `login`. On a server, copy "
+                     "session.json here from a computer where you ran `login` "
+                     "(see README: Server mode).")
         self._pw = sync_playwright().start()
-        self.ctx = launch(self._pw, self.cfg, headless=True)
+        if self.mode == "profile":
+            self.ctx = launch(self._pw, self.cfg, headless=True)
+        else:
+            self._browser = self._pw.chromium.launch(
+                headless=True, **_channel_kwargs(self.cfg))
+            self._open_session()
         return self
+
+    def _open_session(self):
+        if self.ctx:
+            self.ctx.close()
+        self.ctx = self._browser.new_context(storage_state=str(SESSION_PATH))
+        self._session_mtime = SESSION_PATH.stat().st_mtime
 
     def __exit__(self, *exc):
         try:
-            self.ctx.close()
+            if self.ctx:
+                self.ctx.close()
+            if self._browser:
+                self._browser.close()
         finally:
             self._pw.stop()
 
     def fetch(self):
+        if self.mode == "session" and SESSION_PATH.stat().st_mtime != self._session_mtime:
+            print("  session.json changed on disk, reloading it")
+            self._open_session()
         urls = [f"{BASE}/redeem/{self.cfg['country']}/shop"]
         urls += [f"{BASE}/redeem/sku/{s}" for s in self.cfg.get("extra_skus", [])]
         signed_in, items = None, {}
@@ -188,6 +235,10 @@ class Store:
             s, found = parse_store(resp.text())
             signed_in = s if signed_in is None else (signed_in and s is not False)
             items.update(found)
+        if self.mode == "session" and signed_in:
+            # Keep cookies Microsoft refreshed, so the session lasts longer
+            save_session(self.ctx)
+            self._session_mtime = SESSION_PATH.stat().st_mtime
         return signed_in, items
 
 
@@ -423,11 +474,36 @@ def cmd_login(cfg):
         # running with no windows), so ask for Enter instead.
         input("When you can see your points balance, come back here and press Enter... ")
         try:
+            save_session(ctx)
+        except Exception as e:
+            print("  (couldn't write session.json:", e, ")")
+        try:
             ctx.close()
         except Exception:
             pass
-    print("Saved. Checking that the sign-in worked...")
+    print(f"Saved. ({SESSION_PATH.name} written too, for server mode.)")
+    print("Checking that the sign-in worked...")
     cmd_check(cfg)
+
+
+def cmd_export_session(cfg):
+    """Write session.json from the saved browser profile, to copy to a server."""
+    from playwright.sync_api import sync_playwright
+
+    if not PROFILE_DIR.exists():
+        sys.exit("No browser profile here. Run `login` first.")
+    with sync_playwright() as pw:
+        try:
+            ctx = launch(pw, cfg, headless=True)
+        except Exception as e:
+            sys.exit("Couldn't open the browser profile. If the watcher is running on "
+                     f"this computer, stop it first (Ctrl+C) and try again.\n({e})")
+        ctx.request.get(f"{BASE}/redeem/{cfg['country']}/shop", timeout=30_000)
+        save_session(ctx)
+        ctx.close()
+    print(f"Wrote {SESSION_PATH} (owner-only). Copy it to your server, e.g.:")
+    print("  ./deploy/push-session.sh pi@raspberrypi.local")
+    print("Treat this file like a password: it signs whoever has it in as you.")
 
 
 def print_items(signed_in, items, cfg):
@@ -474,8 +550,13 @@ def cmd_run(cfg):
             if not signed_in:
                 print(f"[{stamp}] signed out, stock unknown")
                 if not warned_signed_out:
-                    alert(cfg, "Rewards_Watcher signed out",
-                          "Run: .venv/bin/python rewards_watcher.py login")
+                    if store.mode == "session":
+                        fix = ("On your computer run `login` (or `export-session`), "
+                               "then copy session.json to the server: "
+                               "./deploy/push-session.sh user@server")
+                    else:
+                        fix = "Run: .venv/bin/python rewards_watcher.py login"
+                    alert(cfg, "Rewards_Watcher signed out", fix)
                     warned_signed_out = True
                 time.sleep(interval)
                 continue
@@ -611,12 +692,14 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command",
-                    choices=["setup", "login", "check", "run", "history", "test-alert"])
+                    choices=["setup", "login", "export-session", "check", "run",
+                             "history", "test-alert"])
     args = ap.parse_args()
     cfg = load_config()
     {
         "setup": cmd_setup,
         "login": cmd_login,
+        "export-session": cmd_export_session,
         "check": cmd_check,
         "run": cmd_run,
         "history": cmd_history,

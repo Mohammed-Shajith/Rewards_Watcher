@@ -1,6 +1,7 @@
 {
   "country": "in",
   "browser": "auto",
+  "auth": "auto",
   "interval_minutes": 4,
   "watch": [],
   "ignore": [

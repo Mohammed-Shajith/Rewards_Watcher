@@ -163,7 +163,8 @@ up under *Script Editor* and can't open links.
 | Command | What it does |
 |---|---|
 | `setup` | First-time wizard: region, phone and email alerts, writes `config.json` |
-| `login` | Opens a browser so you can sign in once |
+| `login` | Opens a browser so you can sign in once (also writes `session.json`) |
+| `export-session` | Re-writes `session.json` from your browser profile, for server mode |
 | `check` | Checks the store once and prints every card |
 | `run` | Keeps checking and sends alerts (Ctrl+C to stop) |
 | `history` | Restock log, with how long each restock lasted |
@@ -180,15 +181,108 @@ Signed in: yes   items: 2
 
 ### Keeping it running
 
-On a Mac, stop it from sleeping while it runs:
+**On a Mac, run it in the background** (recommended). It starts at login,
+restarts if it crashes, keeps running after you close the terminal, and
+stops the Mac from idle-sleeping:
 
 ```bash
-caffeinate -i .venv/bin/python rewards_watcher.py run
+./deploy/macos-agent.sh install     # set up and start
+./deploy/macos-agent.sh status      # running? last checks
+./deploy/macos-agent.sh logs        # live log (data/watcher.log)
+./deploy/macos-agent.sh restart     # after editing config.json
+./deploy/macos-agent.sh stop        # pause until next login
+./deploy/macos-agent.sh uninstall   # remove completely
 ```
 
-It only works while the computer is on and awake. Running it 24/7 on a
-Raspberry Pi, an old laptop or a free cloud server is planned
-(see [Roadmap](#roadmap)).
+Or just in a terminal: `caffeinate -i .venv/bin/python rewards_watcher.py run`.
+
+**When does it watch?** Only while the Mac is awake:
+
+| Mac state | Watching? |
+|---|---|
+| Open, even with the screen off or locked | ✅ |
+| Lid closed (asleep) | ❌ macOS always sleeps a closed MacBook, unless it's plugged in with an external display |
+| Just woke up | ✅ resumes within a few minutes |
+| After a restart | ✅ with the background agent, once you log in |
+
+To catch 3 AM restocks while your laptop sleeps, use server mode.
+
+---
+
+## Server mode (run 24/7)
+
+Run the watcher on an always-on Linux machine. You still **sign in on your
+own computer**: the server never needs a screen or your password. You copy
+your sign-in to it as a `session.json` file.
+
+```
+ Your computer                             Server (Pi / laptop / cloud VM)
+ ─────────────                             ───────────────────────────────
+ login  ──► session.json ──(scp / ssh)──►  session.json ──► run (systemd)
+                                            keeps it refreshed, alerts you
+```
+
+### Which server?
+
+| Option | Cost | Notes |
+|---|---|---|
+| **Raspberry Pi 4/5 or an old laptop at home** ⭐ | Pi ~₹5–7k once, old laptop free | Uses your home internet, the same kind of connection you normally use Rewards from, so the fewest surprises. Needs a **64-bit** OS (Raspberry Pi OS 64-bit, Ubuntu). |
+| **Oracle Cloud Always Free** (Ampere A1 Arm VM) | Free (card needed to sign up) | Pick an Indian region (Mumbai/Hyderabad) for the Indian store. Free Arm capacity is often "out of capacity", and Oracle can reclaim *idle* free VMs. Datacenter IPs may make Microsoft re-ask for sign-in more often. |
+| **Any small VPS** | ~₹350–500/month | Same as Oracle but no capacity lottery. 1 GB RAM is enough. |
+
+### Setup
+
+**1. On the server** (Ubuntu / Debian / Raspberry Pi OS 64-bit):
+
+```bash
+sudo apt update && sudo apt install -y git python3 python3-venv
+git clone https://github.com/Mohammed-Shajith/Rewards_Watcher.git
+cd Rewards_Watcher
+./setup.sh            # installs Chromium + libraries, runs the wizard
+```
+
+In the wizard, set up ntfy and/or email: Mac notifications are skipped on
+Linux. To reuse your existing ntfy topic and email settings, copy your
+`config.json` over instead (`scp config.json user@server:Rewards_Watcher/`).
+
+**2. On your computer**, after `login` has been done once (stop the local
+watcher first if it's running):
+
+```bash
+./deploy/push-session.sh user@server
+```
+
+This exports `session.json` from your browser profile and copies it to the
+server over SSH.
+
+**3. On the server**, install the auto-start service:
+
+```bash
+./deploy/install-service.sh
+```
+
+It runs one `check` to confirm the sign-in works, then installs a systemd
+service that starts on boot and restarts if it crashes.
+
+```bash
+sudo systemctl status rewards-watcher      # is it running?
+journalctl -u rewards-watcher -f           # live log
+sudo systemctl restart rewards-watcher     # after editing config.json
+```
+
+### When the session expires
+
+You'll get a "signed out" alert. On your computer run `login` again, then
+`./deploy/push-session.sh user@server`. The server picks up the new file on
+its next check, with no restart needed.
+
+> **`session.json` is as sensitive as your password**: whoever has it is
+> signed in to your Microsoft account. It's created owner-only
+> (`chmod 600`), git-ignored, and should only ever travel over SSH to a
+> machine you control.
+
+Don't run the watcher on your computer and the server at the same time, or
+you'll get every alert twice.
 
 ---
 
@@ -200,6 +294,7 @@ Created by `setup` (see [`config.example.json`](config.example.json)).
 |---|---|---|
 | `country` | `"in"` | Store region, as in `rewards.bing.com/redeem/in/shop` |
 | `browser` | `"auto"` | `auto`, `msedge`, `chrome` or `chromium` |
+| `auth` | `"auto"` | `profile` (browser profile on this machine), `session` (`session.json`, server mode), or `auto` (profile if it exists) |
 | `interval_minutes` | `4` | Time between checks (minimum 2) |
 | `watch` | `[]` | Only alert for these: item ID or part of the title, e.g. `["amazon", "flipkart"]`. Empty = every card |
 | `ignore` | `["overwatch"]` | Never alert for these |
@@ -220,6 +315,8 @@ Created by `setup` (see [`config.example.json`](config.example.json)).
 | Phone alert only shows inside the ntfy app | Close the app (it doesn't notify for the topic you're viewing) and check battery settings. |
 | Mac banner opens Script Editor | Install and allow `terminal-notifier` (see above). |
 | `login` window doesn't open | Set `"browser"` in `config.json` to one you have installed. |
+| `export-session` says the profile is in use | Stop the watcher on that computer (Ctrl+C, or `./deploy/macos-agent.sh stop`), then retry. `push-session.sh` does this for you. |
+| Server: `check` says `Signed in: NO` | Copy a fresh session: `./deploy/push-session.sh user@server`. |
 
 ---
 
@@ -270,15 +367,16 @@ Issues and pull requests are welcome. Fork the repo, work on a branch, and
 open a pull request against `main`. `main` is protected, and changes land
 only when the maintainer merges a PR. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Never commit `config.json`, `profile/` or `data/`. They hold your sign-in,
-alert topic and email password, and `.gitignore` already excludes them.
+Never commit `config.json`, `session.json`, `profile/` or `data/`. They hold
+your sign-in, alert topic and email password, and `.gitignore` already
+excludes them.
 
 ---
 
 ## Roadmap
 
-- [ ] **Server mode**: run 24/7 on a Raspberry Pi, old laptop or free cloud
-      VM (portable session file, systemd service)
+- [x] **Server mode**: run 24/7 on a Raspberry Pi, old laptop or cloud VM
+- [x] **macOS background agent**: start at login, survive closing the terminal
 - [ ] More stores/regions tested
 - [ ] Optional daily summary
 
