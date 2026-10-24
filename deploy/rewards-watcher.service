@@ -1,0 +1,18 @@
+# systemd service for Rewards_Watcher (Linux servers / Raspberry Pi).
+# Don't edit by hand: deploy/install-service.sh fills in USER and DIR.
+[Unit]
+Description=Rewards_Watcher (Microsoft Rewards restock alerts)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__DIR__
+ExecStart=__DIR__/.venv/bin/python __DIR__/rewards_watcher.py run
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

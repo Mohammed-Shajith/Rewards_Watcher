@@ -38,7 +38,7 @@ The maintainer reviews it and, if it's good, merges it. Nothing changes on
 ## Guidelines
 
 - Keep it one file and standard library + Playwright where possible.
-- Never commit `config.json`, `profile/` or `data/`. They contain your
+- Never commit `config.json`, `session.json`, `profile/` or `data/`. They contain your
   sign-in, alert topic and email password. `.gitignore` already excludes
   them; double-check `git status` before committing.
 - Don't post screenshots that show your points balance, name, email or ntfy

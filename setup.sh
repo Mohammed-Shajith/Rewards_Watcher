@@ -22,8 +22,18 @@ for p in "/Applications/Microsoft Edge.app" "/Applications/Google Chrome.app" \
   [ -e "$p" ] && has_browser=true
 done
 if [ "$has_browser" = false ]; then
-  echo "==> No Edge or Chrome found, downloading Playwright's Chromium"
-  .venv/bin/python -m playwright install chromium
+  if [ "$(uname)" = "Linux" ]; then
+    case "$(uname -m)" in
+      x86_64|aarch64|arm64) ;;
+      *) echo "Playwright needs a 64-bit OS (x86_64 or arm64). On a Raspberry Pi,"
+         echo "install Raspberry Pi OS (64-bit)."; exit 1 ;;
+    esac
+    echo "==> Downloading Chromium and its system libraries (may ask for sudo)"
+    .venv/bin/python -m playwright install --with-deps chromium
+  else
+    echo "==> No Edge or Chrome found, downloading Playwright's Chromium"
+    .venv/bin/python -m playwright install chromium
+  fi
 fi
 
 if [ "$(uname)" = "Darwin" ] && ! command -v terminal-notifier >/dev/null 2>&1; then

@@ -5,3 +5,5 @@ config.json
 __pycache__/
 .DS_Store
 *.log
+session.json
+session.tmp
