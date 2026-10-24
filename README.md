@@ -1,5 +1,7 @@
 # Rewards_Watcher
 
+**v2.1** · [Changelog](CHANGELOG.md)
+
 Get a phone alert the moment a Microsoft Rewards gift card comes back in stock.
 
 In India (and some other regions), Microsoft Rewards gift cards like Amazon
@@ -50,7 +52,8 @@ and compares it with the previous check:
 ## Quick start
 
 Needs **Python 3.9+** and macOS or Linux. Uses Microsoft Edge or Google
-Chrome if installed, otherwise downloads a Chromium browser automatically.
+Chrome if installed (only for signing in), otherwise downloads a Chromium
+browser automatically.
 
 ```bash
 git clone https://github.com/Mohammed-Shajith/Rewards_Watcher.git
@@ -230,6 +233,10 @@ your sign-in to it as a `session.json` file.
 | **Oracle Cloud Always Free** (Ampere A1 Arm VM) | Free (card needed to sign up) | Pick an Indian region (Mumbai/Hyderabad) for the Indian store. Free Arm capacity is often "out of capacity", and Oracle can reclaim *idle* free VMs. Datacenter IPs may make Microsoft re-ask for sign-in more often. |
 | **Any small VPS** | ~₹350–500/month | Same as Oracle but no capacity lottery. 1 GB RAM is enough. |
 
+With the **lite install** (below) the server needs no browser at all, just Python, so
+even the smallest machines work (Oracle's 1 GB AMD Micro, a Pi Zero 2, an old
+32-bit laptop).
+
 ### Setup
 
 **1. On the server** (Ubuntu / Debian / Raspberry Pi OS 64-bit):
@@ -238,8 +245,11 @@ your sign-in to it as a `session.json` file.
 sudo apt update && sudo apt install -y git python3 python3-venv
 git clone https://github.com/Mohammed-Shajith/Rewards_Watcher.git
 cd Rewards_Watcher
-./setup.sh            # installs Chromium + libraries, runs the wizard
+./setup.sh --lite     # Python only: no Playwright, no Chromium (recommended)
 ```
+
+Lite mode checks the store with plain web requests using your `session.json`.
+Use `./setup.sh` (full) instead if you want the headless-browser fetcher.
 
 In the wizard, set up ntfy and/or email: Mac notifications are skipped on
 Linux. To reuse your existing ntfy topic and email settings, copy your
@@ -294,6 +304,7 @@ Created by `setup` (see [`config.example.json`](config.example.json)).
 |---|---|---|
 | `country` | `"in"` | Store region, as in `rewards.bing.com/redeem/in/shop` |
 | `browser` | `"auto"` | `auto`, `msedge`, `chrome` or `chromium` |
+| `fetcher` | `"auto"` | `browser` (headless browser), `lite` (plain HTTP, no browser), or `auto` (browser with a local profile, lite with `session.json`) |
 | `auth` | `"auto"` | `profile` (browser profile on this machine), `session` (`session.json`, server mode), or `auto` (profile if it exists) |
 | `interval_minutes` | `4` | Time between checks (minimum 2) |
 | `watch` | `[]` | Only alert for these: item ID or part of the title, e.g. `["amazon", "flipkart"]`. Empty = every card |
@@ -349,8 +360,12 @@ expired session.
 
 **Flow.**
 
-1. `Store.fetch()`: a headless browser with the saved profile requests
-   `/redeem/{country}/shop` (one request; the cookies carry the sign-in).
+1. `fetch()`: requests `/redeem/{country}/shop` with your sign-in cookies.
+   Two fetchers share the same interface:
+   - `Store`: headless browser (Playwright) with the local profile or `session.json`.
+   - `LiteStore`: plain `urllib` with the cookies from `session.json`. It
+     merges refreshed cookies back into the file. Standard library only.
+   `make_store()` picks one from the `fetcher` setting.
 2. `parse_store()`: joins and unescapes the `__next_f` chunks, then
    JSON-decodes every `"items":[...]` array.
 3. `record()`: compares with the last state in SQLite (`data/rewards.db`,
@@ -377,6 +392,8 @@ excludes them.
 
 - [x] **Server mode**: run 24/7 on a Raspberry Pi, old laptop or cloud VM
 - [x] **macOS background agent**: start at login, survive closing the terminal
+- [x] **Lite mode** (v2.1): no browser needed, standard library only
+- [ ] **Phone mode**: run on Android (Termux), then a native app
 - [ ] More stores/regions tested
 - [ ] Optional daily summary
 

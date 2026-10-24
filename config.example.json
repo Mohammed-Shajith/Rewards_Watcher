@@ -2,6 +2,7 @@
   "country": "in",
   "browser": "auto",
   "auth": "auto",
+  "fetcher": "auto",
   "interval_minutes": 4,
   "watch": [],
   "ignore": [

@@ -28,11 +28,14 @@ import sqlite3
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
+
+__version__ = "2.1.0"
 
 HERE = Path(__file__).resolve().parent
 CONFIG_PATH = HERE / "config.json"
@@ -46,6 +49,7 @@ DEFAULT_CONFIG = {
     "country": "in",
     "browser": "auto",
     "auth": "auto",
+    "fetcher": "auto",
     "interval_minutes": 4,
     "watch": [],
     "ignore": ["overwatch"],
@@ -240,6 +244,126 @@ class Store:
             save_session(self.ctx)
             self._session_mtime = SESSION_PATH.stat().st_mtime
         return signed_in, items
+
+
+class LiteStore:
+    """Browserless fetcher: plain HTTP requests carrying the cookies from
+    session.json. Needs only the Python standard library (no Playwright,
+    no Chromium), so it runs on tiny servers and on phones (Termux).
+    Cookies Microsoft refreshes are written back to session.json in the
+    same format, so browser mode can still read it."""
+
+    mode = "session"
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self._state = None
+        self._jar = None
+        self._opener = None
+        self._session_mtime = None
+
+    def __enter__(self):
+        if not SESSION_PATH.exists():
+            sys.exit("Lite mode needs session.json. Run `login` (or `export-session`) "
+                     "on a computer with a browser and copy session.json here.")
+        self._load()
+        return self
+
+    def __exit__(self, *exc):
+        pass
+
+    def _load(self):
+        import http.cookiejar
+
+        self._state = json.loads(SESSION_PATH.read_text())
+        self._jar = http.cookiejar.CookieJar()
+        for c in self._state.get("cookies", []):
+            expires = c.get("expires", -1)
+            self._jar.set_cookie(http.cookiejar.Cookie(
+                version=0, name=c["name"], value=c["value"],
+                port=None, port_specified=False,
+                domain=c["domain"], domain_specified=True,
+                domain_initial_dot=c["domain"].startswith("."),
+                path=c.get("path", "/"), path_specified=True,
+                secure=c.get("secure", False),
+                expires=int(expires) if expires and expires > 0 else None,
+                discard=not (expires and expires > 0),
+                comment=None, comment_url=None,
+                rest={"HttpOnly": None} if c.get("httpOnly") else {},
+            ))
+        self._opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self._jar))
+        # Identify honestly; no browser impersonation.
+        self._opener.addheaders = [
+            ("User-Agent", f"Rewards_Watcher/{__version__} "
+                           "(+https://github.com/Mohammed-Shajith/Rewards_Watcher)"),
+            ("Accept-Language", "en-IN,en;q=0.9"),
+        ]
+        self._session_mtime = SESSION_PATH.stat().st_mtime
+
+    def _save(self):
+        """Merge the jar's current cookies back into the storage-state JSON."""
+        by_key = {(c["name"], c["domain"], c.get("path", "/")): c
+                  for c in self._state.get("cookies", [])}
+        for ck in self._jar:
+            key = (ck.name, ck.domain, ck.path)
+            entry = by_key.get(key) or {
+                "name": ck.name, "domain": ck.domain, "path": ck.path,
+                "httpOnly": ck.has_nonstandard_attr("HttpOnly"),
+                "secure": bool(ck.secure), "sameSite": "Lax",
+            }
+            entry["value"] = ck.value
+            entry["expires"] = float(ck.expires) if ck.expires else -1
+            by_key[key] = entry
+        self._state["cookies"] = list(by_key.values())
+        tmp = SESSION_PATH.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self._state))
+        os.chmod(tmp, 0o600)
+        tmp.replace(SESSION_PATH)
+        self._session_mtime = SESSION_PATH.stat().st_mtime
+
+    def fetch(self):
+        if SESSION_PATH.stat().st_mtime != self._session_mtime:
+            print("  session.json changed on disk, reloading it")
+            self._load()
+        urls = [f"{BASE}/redeem/{self.cfg['country']}/shop"]
+        urls += [f"{BASE}/redeem/sku/{s}" for s in self.cfg.get("extra_skus", [])]
+        signed_in, items = None, {}
+        for url in urls:
+            try:
+                with self._opener.open(url, timeout=30) as resp:
+                    page = resp.read().decode("utf-8", "replace")
+            except urllib.error.HTTPError as e:
+                raise RuntimeError(f"{url} returned HTTP {e.code}")
+            s, found = parse_store(page)
+            signed_in = s if signed_in is None else (signed_in and s is not False)
+            items.update(found)
+        if signed_in:
+            self._save()
+        return signed_in, items
+
+
+def has_playwright():
+    import importlib.util
+    return importlib.util.find_spec("playwright") is not None
+
+
+NO_BROWSER_MSG = ("This is a lite install (no Playwright/browser), so it can't open a "
+                  "sign-in window. Run `login` on a computer with the full install "
+                  "(./setup.sh) and copy its session.json here.")
+
+
+def fetcher_name(cfg):
+    """browser = headless browser via Playwright. lite = plain HTTP (no
+    browser). auto = browser with a local profile, lite with session.json."""
+    name = cfg.get("fetcher", "auto")
+    if name == "auto":
+        name = "browser" if auth_mode(cfg) == "profile" else "lite"
+    return name
+
+
+def make_store(cfg):
+    return LiteStore(cfg) if fetcher_name(cfg) == "lite" else Store(cfg)
 
 
 # ---------------------------------------------------------------- storage
@@ -463,6 +587,8 @@ def pts(p):
 # ---------------------------------------------------------------- commands
 
 def cmd_login(cfg):
+    if not has_playwright():
+        sys.exit(NO_BROWSER_MSG)
     from playwright.sync_api import sync_playwright
 
     print(f"Opening {pick_browser(cfg)}. Sign in to Microsoft Rewards there.")
@@ -488,6 +614,8 @@ def cmd_login(cfg):
 
 def cmd_export_session(cfg):
     """Write session.json from the saved browser profile, to copy to a server."""
+    if not has_playwright():
+        sys.exit(NO_BROWSER_MSG)
     from playwright.sync_api import sync_playwright
 
     if not PROFILE_DIR.exists():
@@ -519,7 +647,8 @@ def print_items(signed_in, items, cfg):
 
 
 def cmd_check(cfg):
-    with Store(cfg) as store:
+    print(f"Rewards_Watcher {__version__} | sign-in: {auth_mode(cfg)} | fetcher: {fetcher_name(cfg)}")
+    with make_store(cfg) as store:
         signed_in, items = store.fetch()
     print_items(signed_in, items, cfg)
     if not signed_in:
@@ -531,8 +660,9 @@ def cmd_run(cfg):
     con = db()
     warned_signed_out = False
     failures = 0
-    print(f"Watching every {interval / 60:g} min. Ctrl+C to stop.")
-    with Store(cfg) as store:
+    print(f"Rewards_Watcher {__version__}: watching every {interval / 60:g} min "
+          f"(fetcher: {fetcher_name(cfg)}). Ctrl+C to stop.")
+    with make_store(cfg) as store:
         while True:
             stamp = datetime.now().strftime("%H:%M:%S")
             try:
@@ -684,13 +814,17 @@ def cmd_setup(cfg):
     CONFIG_PATH.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n")
     os.chmod(CONFIG_PATH, 0o600)  # may hold an email password: owner-only
     print(f"\nSaved {CONFIG_PATH.name}.")
-    print("Next:  .venv/bin/python rewards_watcher.py login   (sign in once)")
+    if has_playwright():
+        print("Next:  .venv/bin/python rewards_watcher.py login   (sign in once)")
+    else:
+        print("Next:  copy session.json here from a computer where you ran `login`")
     print("Then:  .venv/bin/python rewards_watcher.py test-alert, check, run")
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--version", action="version", version=f"Rewards_Watcher {__version__}")
     ap.add_argument("command",
                     choices=["setup", "login", "export-session", "check", "run",
                              "history", "test-alert"])
