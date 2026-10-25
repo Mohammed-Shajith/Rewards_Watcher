@@ -35,7 +35,7 @@ from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
 
-__version__ = "2.1.0"
+__version__ = "2.1.1"
 
 HERE = Path(__file__).resolve().parent
 CONFIG_PATH = HERE / "config.json"
@@ -172,11 +172,16 @@ def save_session(ctx):
 
 
 def auth_mode(cfg):
-    """profile = browser profile on this machine (desktop).
-    session = session.json copied from another machine (server mode)."""
+    """profile = the browser profile on this machine.
+    session = session.json (written by `login`/`export-session`, or copied
+    from another machine).
+    auto = session.json whenever it exists, so the long-running watcher
+    doesn't keep a hidden browser open. On macOS a hidden Edge/Chrome
+    hijacks the Dock icon (clicking it shows no window). The profile is
+    then only used briefly, by `login` and `export-session`."""
     mode = cfg.get("auth", "auto")
     if mode == "auto":
-        mode = "profile" if PROFILE_DIR.exists() else "session"
+        mode = "session" if SESSION_PATH.exists() or not PROFILE_DIR.exists() else "profile"
     return mode
 
 
@@ -680,7 +685,10 @@ def cmd_run(cfg):
             if not signed_in:
                 print(f"[{stamp}] signed out, stock unknown")
                 if not warned_signed_out:
-                    if store.mode == "session":
+                    if store.mode == "session" and PROFILE_DIR.exists():
+                        fix = ("Run: .venv/bin/python rewards_watcher.py export-session "
+                               "(if it still says signed out, run `login`)")
+                    elif store.mode == "session":
                         fix = ("On your computer run `login` (or `export-session`), "
                                "then copy session.json to the server: "
                                "./deploy/push-session.sh user@server")

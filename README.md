@@ -1,6 +1,6 @@
 # Rewards_Watcher
 
-**v2.1** · [Changelog](CHANGELOG.md)
+**v2.1.1** · [Changelog](CHANGELOG.md)
 
 Get a phone alert the moment a Microsoft Rewards gift card comes back in stock.
 
@@ -199,6 +199,9 @@ stops the Mac from idle-sleeping:
 
 Or just in a terminal: `caffeinate -i .venv/bin/python rewards_watcher.py run`.
 
+The watcher runs in lite mode (no browser) using the `session.json` that
+`login` writes, so it never touches your everyday Edge or Chrome.
+
 **When does it watch?** Only while the Mac is awake:
 
 | Mac state | Watching? |
@@ -304,8 +307,8 @@ Created by `setup` (see [`config.example.json`](config.example.json)).
 |---|---|---|
 | `country` | `"in"` | Store region, as in `rewards.bing.com/redeem/in/shop` |
 | `browser` | `"auto"` | `auto`, `msedge`, `chrome` or `chromium` |
-| `fetcher` | `"auto"` | `browser` (headless browser), `lite` (plain HTTP, no browser), or `auto` (browser with a local profile, lite with `session.json`) |
-| `auth` | `"auto"` | `profile` (browser profile on this machine), `session` (`session.json`, server mode), or `auto` (profile if it exists) |
+| `fetcher` | `"auto"` | `browser` (headless browser), `lite` (plain HTTP, no browser), or `auto` (lite with `session.json`, browser only with a profile and no `session.json`) |
+| `auth` | `"auto"` | `profile` (browser profile on this machine), `session` (`session.json`), or `auto`: `session.json` whenever it exists, so the watcher runs without a hidden browser |
 | `interval_minutes` | `4` | Time between checks (minimum 2) |
 | `watch` | `[]` | Only alert for these: item ID or part of the title, e.g. `["amazon", "flipkart"]`. Empty = every card |
 | `ignore` | `["overwatch"]` | Never alert for these |
@@ -326,6 +329,7 @@ Created by `setup` (see [`config.example.json`](config.example.json)).
 | Phone alert only shows inside the ntfy app | Close the app (it doesn't notify for the topic you're viewing) and check battery settings. |
 | Mac banner opens Script Editor | Install and allow `terminal-notifier` (see above). |
 | `login` window doesn't open | Set `"browser"` in `config.json` to one you have installed. |
+| macOS: clicking Edge/Chrome in the Dock shows no window | An older version kept a hidden browser running. Update to 2.1.1+ and run `./deploy/macos-agent.sh restart`. |
 | `export-session` says the profile is in use | Stop the watcher on that computer (Ctrl+C, or `./deploy/macos-agent.sh stop`), then retry. `push-session.sh` does this for you. |
 | Server: `check` says `Signed in: NO` | Copy a fresh session: `./deploy/push-session.sh user@server`. |
 
