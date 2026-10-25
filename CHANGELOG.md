@@ -1,6 +1,16 @@
 # Changelog
 
-## 2.1.0: Lite mode (unreleased)
+## 2.1.1: Lite by default
+
+- **Fix (macOS):** the long-running watcher no longer keeps a hidden
+  Edge/Chrome open. On macOS that hidden browser took over the Dock icon:
+  clicking Edge showed the menu bar but no window. Whenever `session.json`
+  exists (`login` always writes it), `auth: auto` now uses it, so `run` and
+  `check` use lite mode with no browser. The browser profile is only used
+  briefly by `login` and `export-session`.
+- Signed-out alert on a desktop now suggests `export-session` first.
+
+## 2.1.0: Lite mode
 
 - **Browserless "lite" fetcher**: checks the store with plain HTTP requests
   carrying the cookies from `session.json`. Uses only the Python standard
