@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.0.0-alpha1: Android app (in progress)
+
+- **Native Android app** in `android/`: checks the store itself and shows its
+  own notifications (no server, ntfy or Python). Plain Java, no libraries,
+  **~53 KB**.
+- Exact alarms every 10 minutes that may fire in Doze. Nothing runs between
+  checks, and it restarts after a reboot or app update.
+- Sign-in by importing the desktop `session.json`. Refreshed cookies are
+  kept.
+- On-phone diagnostics: every check with the gap since the previous one,
+  result and data used.
+
 ## 2.1.1: Lite by default
 
 - **Fix (macOS):** the long-running watcher no longer keeps a hidden

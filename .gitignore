@@ -7,3 +7,11 @@ __pycache__/
 *.log
 session.json
 session.tmp
+
+# Android build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.apk

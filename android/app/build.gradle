@@ -1,0 +1,40 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "io.github.mohammedshajith.rewardswatcher"
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "io.github.mohammedshajith.rewardswatcher"
+        minSdk 29          // Android 10+
+        targetSdk 35       // Android 15
+        versionCode 1
+        versionName "3.0.0-alpha1"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            // Personal/sideload builds are signed with the local debug key.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    dependenciesInfo {
+        includeInApk false
+        includeInBundle false
+    }
+}
+
+// No dependencies on purpose: only what Android already ships.
+dependencies {
+}
