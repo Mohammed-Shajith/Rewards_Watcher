@@ -69,7 +69,7 @@ final class Checker {
                 result = "signed out";
                 if (!p.getBoolean("warnedSignedOut", false)) {
                     Notifier.show(c, Notifier.INFO, 2, "Rewards Watcher signed out",
-                            "Stock can't be read. On your computer run `export-session` (or `login`) and import the new session.json.", null);
+                            "Stock can't be read. Open the app and tap Sign in with Microsoft.", null);
                     p.edit().putBoolean("warnedSignedOut", true).apply();
                 }
             } else {
@@ -86,6 +86,9 @@ final class Checker {
             result = "failed: " + e.getMessage();
             int f = p.getInt("failures", 0) + 1;
             p.edit().putInt("failures", f).apply();
+            // One quick retry after a first failure (503s and network blips are
+            // usually gone a minute later); then back to the normal interval.
+            if (scheduled && f == 1 && State.watching(c)) Scheduler.scheduleIn(c, 60_000);
             if (f >= 5 && !p.getBoolean("failureAlerted", false)) {
                 Notifier.show(c, Notifier.INFO, 3, "Rewards Watcher having trouble",
                         "5 checks in a row failed. Last error: " + e.getMessage(), null);

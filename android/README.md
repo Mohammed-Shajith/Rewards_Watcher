@@ -4,7 +4,7 @@ A tiny native Android app that checks the Microsoft Rewards store itself
 and shows a notification when a gift card is back in stock. No server, no
 ntfy, no Python.
 
-- **~53 KB app**, written in plain Java with **no libraries**: only what
+- **~58 KB app**, written in plain Java with **no libraries**: only what
   Android already ships (web requests, notifications, alarms, storage).
 - **Nothing runs between checks.** An exact alarm wakes the app every
   10 minutes (allowed in Doze), it does one check in ~1 s (about 15–45 KB,
@@ -13,9 +13,9 @@ ntfy, no Python.
   after a reboot or update.
 - **Read-only**, like the desktop version: it never redeems anything.
 
-> Status: **3.0.0-alpha1**. Sign-in currently works by importing the
-> `session.json` from the desktop Rewards_Watcher. In-app sign-in comes in
-> a later version.
+> Status: **3.0.0-alpha2**. Tested on a Realme (Android 15 / ColorOS) for
+> 3 days: checks every ~10 min day and night, longest gap 15 min, about
+> 0.3% battery a day.
 
 ## Install
 
@@ -24,10 +24,13 @@ ntfy, no Python.
 
 ## Set up
 
-1. On your computer, run the desktop watcher's `login` once. It writes
-   `session.json`. Copy that file to the phone, e.g. into Downloads.
-2. Open **Rewards Watcher** → **Import session.json** → pick the file.
-   Then delete the file from Downloads: it's as sensitive as a password.
+1. Open **Rewards Watcher** → **Sign in with Microsoft**, sign in, and tap
+   **Done** once you see your points. The app checks that the sign-in works.
+   (Alternative: **Import session.json** from the desktop Rewards_Watcher's
+   `login`, then delete the file from Downloads: it's as sensitive as a
+   password.)
+2. Optional, under **Settings**: check interval, cards to watch or ignore,
+   store region. **Save settings**.
 3. In **Setup**, tap each button until all three show ✅:
    - **Notifications**
    - **Exact alarms** (*Alarms & reminders*), needed for 10-minute checks
@@ -68,4 +71,5 @@ installing on your own phone.
 | `Checker.java` | One check: compare with the last state, notify, record |
 | `Scheduler.java`, `AlarmReceiver.java`, `BootReceiver.java` | Exact alarms, run a check, restart after reboot/update |
 | `State.java` | Small JSON files in private storage (stock, history, check log) |
-| `MainActivity.java` | The single screen, built in code |
+| `SignInActivity.java` | Microsoft sign-in in a WebView (only loaded on that screen); copies the cookies into the session file |
+| `MainActivity.java` | The main screen (status, setup, settings, diagnostics, history), built in code |

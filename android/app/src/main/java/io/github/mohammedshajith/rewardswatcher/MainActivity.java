@@ -14,7 +14,9 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.View;
+import android.text.InputType;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -42,6 +44,7 @@ public class MainActivity extends Activity {
 
     private TextView status, setup, items, diag, history;
     private Button watchBtn, notifyBtn, exactBtn, batteryBtn;
+    private EditText intervalIn, watchIn, ignoreIn, countryIn;
     private final SimpleDateFormat hm = new SimpleDateFormat("HH:mm", Locale.getDefault());
     private final SimpleDateFormat dhm = new SimpleDateFormat("dd MMM HH:mm", Locale.getDefault());
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -65,7 +68,8 @@ public class MainActivity extends Activity {
 
         watchBtn = button(col, "", v -> toggleWatching());
         button(col, "Check now", v -> checkNow());
-        button(col, "Import session.json", v -> pickSession());
+        button(col, "Sign in with Microsoft", v -> startActivity(new Intent(this, SignInActivity.class)));
+        button(col, "Import session.json (from the desktop app)", v -> pickSession());
 
         header(col, "Setup");
         setup = text(col, "", 14, false);
@@ -74,6 +78,14 @@ public class MainActivity extends Activity {
                 new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + getPackageName()))));
         batteryBtn = button(col, "Remove battery limits", v -> startActivity(
                 new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()))));
+
+        header(col, "Settings");
+        intervalIn = field(col, "Check every (minutes, 5+; Android allows about 10 in deep sleep)", InputType.TYPE_CLASS_NUMBER);
+        watchIn = field(col, "Only alert for (comma separated, empty = every card), e.g. amazon, flipkart", InputType.TYPE_CLASS_TEXT);
+        ignoreIn = field(col, "Never alert for (comma separated)", InputType.TYPE_CLASS_TEXT);
+        countryIn = field(col, "Store region (as in rewards.bing.com/redeem/XX)", InputType.TYPE_CLASS_TEXT);
+        button(col, "Save settings", v -> saveSettings());
+        loadSettings();
 
         header(col, "Gift cards");
         items = text(col, "", 14, false);
@@ -120,7 +132,7 @@ public class MainActivity extends Activity {
             Scheduler.cancel(this);
         } else {
             if (!State.hasSession(this)) {
-                Toast.makeText(this, "Import session.json first", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Sign in first", Toast.LENGTH_LONG).show();
                 return;
             }
             p.edit().putBoolean("watching", true).apply();
@@ -165,6 +177,31 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void loadSettings() {
+        intervalIn.setText(String.valueOf(State.intervalMin(this)));
+        watchIn.setText(State.watch(this));
+        ignoreIn.setText(State.ignore(this));
+        countryIn.setText(State.country(this));
+    }
+
+    private void saveSettings() {
+        int min;
+        try { min = Integer.parseInt(intervalIn.getText().toString().trim()); } catch (NumberFormatException e) { min = 10; }
+        min = Math.max(5, Math.min(min, 240));
+        String country = countryIn.getText().toString().trim().toLowerCase(Locale.ROOT);
+        if (!country.matches("[a-z]{2}")) country = "in";
+        State.prefs(this).edit()
+                .putInt("intervalMin", min)
+                .putString("watch", watchIn.getText().toString().trim())
+                .putString("ignore", ignoreIn.getText().toString().trim())
+                .putString("country", country)
+                .apply();
+        if (State.watching(this)) Scheduler.scheduleNext(this);
+        loadSettings();
+        Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
+        refresh();
+    }
+
     private void askNotifications() {
         if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFY);
@@ -193,7 +230,7 @@ public class MainActivity extends Activity {
         long last = p.getLong("lastAt", 0), next = p.getLong("nextAt", 0);
         StringBuilder s = new StringBuilder();
         s.append("Watching: ").append(watching ? "ON, every " + State.intervalMin(this) + " min" : "OFF").append('\n');
-        s.append("Sign-in: ").append(State.hasSession(this) ? "session.json imported" : "not imported yet").append('\n');
+        s.append("Sign-in: ").append(State.hasSession(this) ? "saved" : "not signed in yet").append('\n');
         s.append("Last check: ").append(last == 0 ? "never" : dhm.format(new Date(last)) + " · " + p.getString("lastResult", "")).append('\n');
         s.append("Next check: ").append(watching && next > 0 ? hm.format(new Date(next)) : "-");
         status.setText(s);
@@ -215,7 +252,7 @@ public class MainActivity extends Activity {
 
     private String itemsText() {
         JSONObject all = State.items(this);
-        if (all.length() == 0) return "No data yet. Import session.json, then Check now.";
+        if (all.length() == 0) return "No data yet. Sign in, then Check now.";
         StringBuilder sb = new StringBuilder();
         Iterator<String> it = all.keys();
         while (it.hasNext()) {
@@ -313,6 +350,16 @@ public class MainActivity extends Activity {
         t.setTextIsSelectable(!bold);
         parent.addView(t);
         return t;
+    }
+
+    private EditText field(LinearLayout parent, String label, int type) {
+        TextView l = text(parent, label, 13, false);
+        l.setPadding(0, dp(6), 0, 0);
+        EditText e = new EditText(this);
+        e.setInputType(type);
+        e.setSingleLine(true);
+        parent.addView(e);
+        return e;
     }
 
     private void header(LinearLayout parent, String s) {
