@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.0-alpha2: Android in-app sign-in and settings
+
+- **Sign in with Microsoft inside the app**: no computer or `session.json`
+  needed. The WebView is only loaded on the sign-in screen.
+- **Settings**: check interval, cards to watch or ignore, store region.
+- **Quick retry**: after a failed check (Microsoft 503s, brief network
+  drops), one retry a minute later, then back to the normal interval.
+- Overnight test (M3) passed on a Realme: checks every ~10 min, longest gap
+  15 min, ~0.3% battery a day. ~58 KB.
+
 ## 3.0.0-alpha1: Android app (in progress)
 
 - **Native Android app** in `android/`: checks the store itself and shows its

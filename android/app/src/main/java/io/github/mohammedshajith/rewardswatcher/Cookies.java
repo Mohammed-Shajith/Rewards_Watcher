@@ -71,6 +71,30 @@ final class Cookies {
         return root.toString();
     }
 
+    /**
+     * Build a jar from a WebView Cookie header ("a=b; c=d") for one host.
+     * WebView only exposes name=value, so these are stored host-only for that
+     * host; Microsoft's Set-Cookie responses refresh them later.
+     */
+    void addFromHeader(String host, String header) {
+        if (header == null) return;
+        for (String part : header.split(";")) {
+            int eq = part.indexOf('=');
+            if (eq <= 0) continue;
+            Cookie c = new Cookie();
+            c.name = part.substring(0, eq).trim();
+            c.value = part.substring(eq + 1).trim();
+            c.domain = host.toLowerCase(Locale.ROOT);
+            c.secure = true;
+            Iterator<Cookie> it = cookies.iterator();
+            while (it.hasNext()) {
+                Cookie o = it.next();
+                if (o.name.equals(c.name) && o.domain.equals(c.domain) && o.path.equals(c.path)) it.remove();
+            }
+            cookies.add(c);
+        }
+    }
+
     int size() {
         return cookies.size();
     }

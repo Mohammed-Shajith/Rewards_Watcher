@@ -25,6 +25,8 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".SignInActivity" android:exported="false" />
+
         <receiver android:name=".AlarmReceiver" android:exported="false" />
 
         <receiver android:name=".BootReceiver" android:exported="true">
