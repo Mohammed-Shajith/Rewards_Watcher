@@ -17,6 +17,10 @@ so you can redeem before it's gone.
   cards Microsoft adds later (or Amazon cards reappearing) are picked up automatically.
 - **Read-only:** it never redeems anything and never touches your points.
 
+| The app | Gift cards & diagnostics |
+|---|---|
+| <img src="docs/images/app-main.png" width="300" alt="Rewards Watcher app: watching on, every 10 min; setup checklist all green"> | <img src="docs/images/app-diagnostics.png" width="300" alt="Gift cards with stock status, and diagnostics: 139 checks in 24 h, typical gap 10 min, longest 15 min"> |
+
 ---
 
 ## Install (Android 10+)
