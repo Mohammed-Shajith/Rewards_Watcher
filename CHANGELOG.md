@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.0.0: Android app
+
+- First stable **Android app** release: native, **58 KB**, no libraries.
+  Checks the store itself every 10 minutes with exact alarms, has its own
+  notifications, and supports in-app Microsoft sign-in.
+- Signed with a dedicated release key (future updates install over it).
+- The app reschedules itself when opened if its alarm went missing (e.g.
+  after a force-stop or a "phone cleaner").
+- Size & battery report: ~0.3% battery a day, ~6 MB data a day, longest
+  overnight gap 15 min (see `android/README.md`).
+
 ## 3.0.0-alpha2: Android in-app sign-in and settings
 
 - **Sign in with Microsoft inside the app**: no computer or `session.json`

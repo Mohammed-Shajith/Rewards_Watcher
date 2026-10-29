@@ -1,6 +1,6 @@
 # Rewards_Watcher
 
-**v2.1.1** · [Changelog](CHANGELOG.md) · 📱 [Android app (alpha)](android/README.md)
+**v3.0.0** · [Changelog](CHANGELOG.md) · 📱 **[Android app](android/README.md)**: recommended, runs on your phone, no computer needed
 
 Get a phone alert the moment a Microsoft Rewards gift card comes back in stock.
 
@@ -397,7 +397,7 @@ excludes them.
 - [x] **Server mode**: run 24/7 on a Raspberry Pi, old laptop or cloud VM
 - [x] **macOS background agent**: start at login, survive closing the terminal
 - [x] **Lite mode** (v2.1): no browser needed, standard library only
-- [ ] **Android app**: alpha in [`android/`](android/README.md). Native, ~53 KB, checks every 10 min with exact alarms
+- [x] **Android app** (v3.0.0): native, 58 KB, checks every 10 min, in-app sign-in. See [`android/`](android/README.md)
 - [ ] More stores/regions tested
 - [ ] Optional daily summary
 

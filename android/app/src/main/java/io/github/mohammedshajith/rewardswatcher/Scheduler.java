@@ -19,6 +19,12 @@ final class Scheduler {
         return PendingIntent.getBroadcast(c, 0, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
+    /** True if our alarm is queued. A force-stop (by the user or a "cleaner") cancels it. */
+    static boolean isScheduled(Context c) {
+        Intent i = new Intent(c, AlarmReceiver.class).setAction("io.github.mohammedshajith.rewardswatcher.CHECK");
+        return PendingIntent.getBroadcast(c, 0, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_NO_CREATE) != null;
+    }
+
     static boolean canExact(Context c) {
         AlarmManager am = c.getSystemService(AlarmManager.class);
         return Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms();

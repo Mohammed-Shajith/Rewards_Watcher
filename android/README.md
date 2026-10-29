@@ -1,4 +1,4 @@
-# Rewards Watcher for Android (alpha)
+# Rewards Watcher for Android
 
 A tiny native Android app that checks the Microsoft Rewards store itself
 and shows a notification when a gift card is back in stock. No server, no
@@ -13,14 +13,19 @@ ntfy, no Python.
   after a reboot or update.
 - **Read-only**, like the desktop version: it never redeems anything.
 
-> Status: **3.0.0-alpha2**. Tested on a Realme (Android 15 / ColorOS) for
-> 3 days: checks every ~10 min day and night, longest gap 15 min, about
-> 0.3% battery a day.
+> **3.0.0**. Tested for 3+ days on a Realme 11 Pro+ (Android 15 /
+> ColorOS): checks every ~10 min day and night, longest gap 15 min,
+> about 0.3% battery a day. See [Size & battery](#size--battery).
 
 ## Install
 
-1. Build it (below) or download the APK from a release.
-2. Install it on your phone (allow installing from your computer/file manager).
+1. Download `RewardsWatcher-3.0.0.apk` from the
+   [latest release](https://github.com/Mohammed-Shajith/Rewards_Watcher/releases),
+   or build it (below).
+2. Open it on your phone and allow installing apps from your browser or file
+   manager when asked.
+3. Optional check: the release page lists the APK's SHA-256 and the signing
+   certificate fingerprint.
 
 ## Set up
 
@@ -39,6 +44,23 @@ ntfy, no Python.
 4. **Realme / Oppo / OnePlus / Xiaomi:** also allow **Auto launch** and
    background activity for the app in the phone's settings.
 5. Tap **Start watching**.
+
+## Size & battery
+
+Measured on a Realme 11 Pro+ (Android 15 / ColorOS), checking every 10 minutes:
+
+| | Measured |
+|---|---|
+| Download (APK) | **58 KB** |
+| Installed | 78 KB app + ~116 KB data (state, history, check log) + ~72 KB cache |
+| Memory | ~25 MB, only while a check runs. Android closes the app between checks |
+| Battery | **16 mAh in ~22 h on battery** (≈0.37% of 4,356 mAh). ~5 mAh of that was screen time looking at the app; background checks ≈11 mAh (≈0.25%), mostly mobile data |
+| Data | ~41–45 KB per check (compressed) → ~6 MB/day |
+| Reliability | 137 checks in 24 h (≈144 expected), typical gap 10 min, **longest 15 min overnight** |
+
+For comparison, running the Python watcher in Termux on the same phone
+checked only every 30–90 minutes at night: the phone's battery manager took
+away its wake lock.
 
 ## Diagnostics
 
