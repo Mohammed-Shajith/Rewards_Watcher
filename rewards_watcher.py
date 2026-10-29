@@ -205,7 +205,7 @@ class Store:
         if self.mode == "session" and not SESSION_PATH.exists():
             sys.exit("No sign-in found. On a desktop run `login`. On a server, copy "
                      "session.json here from a computer where you ran `login` "
-                     "(see README: Server mode).")
+                     "(see docs/desktop.md: Server mode).")
         self._pw = sync_playwright().start()
         if self.mode == "profile":
             self.ctx = launch(self._pw, self.cfg, headless=True)
