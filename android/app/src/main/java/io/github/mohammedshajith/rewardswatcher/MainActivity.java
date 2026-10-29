@@ -109,9 +109,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Self-heal: if watching but the alarm chain was lost, restart it.
+        // Self-heal: if watching but the alarm chain was lost (force-stop, cleaner
+        // app, or an overdue alarm), restart it.
         SharedPreferences p = State.prefs(this);
-        if (State.watching(this) && p.getLong("nextAt", 0) < System.currentTimeMillis() - 120_000) {
+        if (State.watching(this) && (!Scheduler.isScheduled(this)
+                || p.getLong("nextAt", 0) < System.currentTimeMillis() - 120_000)) {
             Scheduler.scheduleIn(this, 5_000);
         }
         ui.post(tick); // keeps the status fresh while the screen is open
